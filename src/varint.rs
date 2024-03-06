@@ -75,3 +75,79 @@ impl VarInt {
         Ok(outcome)
     }
 }
+
+#[cfg(test)]
+mod varint_sanity_checks {
+    use crate::VarInt;
+    use std::io::{Cursor, Read};
+
+    #[test]
+    fn varint_zero_to_252() {
+        let bytes = [0u8, 0, 0, 0, 1];
+        let mut bytes = Cursor::new(bytes.as_slice());
+
+        // Simulate version bytes by skipping 4 bytes
+        bytes.set_position(4);
+
+        let mut varint_byte = [0u8; 1];
+        bytes.read_exact(&mut varint_byte).unwrap();
+        let varint_byte_len = VarInt::parse(varint_byte[0]);
+        let varint_len = VarInt::integer(varint_byte_len, &mut bytes);
+        assert!(varint_len.is_ok());
+        assert_eq!(1usize, varint_len.unwrap());
+    }
+
+    #[test]
+    fn varint_253() {
+        let mut bytes = vec![0u8, 0, 0, 0, 253];
+        let placeholder_bytes = [1u8; 257];
+        bytes.extend_from_slice(&placeholder_bytes);
+        let mut bytes = Cursor::new(bytes.as_slice());
+
+        // Simulate version bytes by skipping 4 bytes
+        bytes.set_position(4);
+
+        let mut varint_byte = [0u8; 1];
+        bytes.read_exact(&mut varint_byte).unwrap();
+        let varint_byte_len = VarInt::parse(varint_byte[0]);
+        let varint_len = VarInt::integer(varint_byte_len, &mut bytes);
+        assert!(varint_len.is_ok());
+        assert_eq!(257usize, varint_len.unwrap());
+    }
+
+    #[test]
+    fn varint_254() {
+        let mut bytes = vec![0u8, 0, 0, 0, 254];
+        let placeholder_bytes = [1u8; 40];
+        bytes.extend_from_slice(&placeholder_bytes);
+        let mut bytes = Cursor::new(bytes.as_slice());
+
+        // Simulate version bytes by skipping 4 bytes
+        bytes.set_position(4);
+
+        let mut varint_byte = [0u8; 1];
+        bytes.read_exact(&mut varint_byte).unwrap();
+        let varint_byte_len = VarInt::parse(varint_byte[0]);
+        let varint_len = VarInt::integer(varint_byte_len, &mut bytes);
+        assert!(varint_len.is_ok());
+        assert_eq!(16843009usize, varint_len.unwrap());
+    }
+
+    #[test]
+    fn varint_255() {
+        let mut bytes = vec![0u8, 0, 0, 0, 255];
+        let placeholder_bytes = [1u8; 40];
+        bytes.extend_from_slice(&placeholder_bytes);
+        let mut bytes = Cursor::new(bytes.as_slice());
+
+        // Simulate version bytes by skipping 4 bytes
+        bytes.set_position(4);
+
+        let mut varint_byte = [0u8; 1];
+        bytes.read_exact(&mut varint_byte).unwrap();
+        let varint_byte_len = VarInt::parse(varint_byte[0]);
+        let varint_len = VarInt::integer(varint_byte_len, &mut bytes);
+        assert!(varint_len.is_ok());
+        assert_eq!(72340172838076673usize, varint_len.unwrap());
+    }
+}
