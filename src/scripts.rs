@@ -24,7 +24,7 @@ impl StandardScripts {
 
         match first_opcode {
             Opcode::OP_PUSHBYTES_65 => Self::P2PK.parse_p2pk(bytes),
-            Opcode::OP_DUP => Self::P2PKH.parse_p2pk(bytes),
+            Opcode::OP_DUP => Self::P2PKH.parse_p2pkh(bytes),
             _ => todo!(),
         }
     }
@@ -48,6 +48,62 @@ impl StandardScripts {
         Ok(Cow::Borrowed(Opcode::OP_PUSHBYTES_65.try_into()?)
             + " "
             + Cow::Owned(hex_public_key.as_str().to_owned())
+            + " "
+            + Cow::Borrowed(Opcode::OP_CHECKSIG.try_into()?))
+    }
+
+    pub fn parse_p2pkh<'a>(&self, bytes: &mut Cursor<&[u8]>) -> io::Result<Cow<'a, str>> {
+        let mut opcode_buffer = [0u8; 1];
+
+        bytes.read_exact(&mut opcode_buffer)?;
+        let should_be_ophash160 = Opcode::from_byte(opcode_buffer[0]);
+        if should_be_ophash160.ne(&Opcode::OP_HASH160) {
+            return Err(Error::new(
+                ErrorKind::InvalidData,
+                "Invalid Data. Expected OP_HASH160 as second byte of the script.",
+            ));
+        }
+
+        bytes.read_exact(&mut opcode_buffer)?;
+        let should_be_op_pushbytes20 = Opcode::from_byte(opcode_buffer[0]);
+        if should_be_op_pushbytes20.ne(&Opcode::OP_PUSHBYTES_20) {
+            return Err(Error::new(
+                ErrorKind::InvalidData,
+                "Invalid Data. Expected OP_PUSHBYTES_20 as third byte of the script.",
+            ));
+        }
+
+        let mut hash160_bytes = [0u8; 20];
+        bytes.read_exact(&mut hash160_bytes)?;
+        let hex_hash160 = hex::encode(&hash160_bytes);
+
+        bytes.read_exact(&mut opcode_buffer)?;
+        let should_be_opequalverify = Opcode::from_byte(opcode_buffer[0]);
+        if should_be_opequalverify.ne(&Opcode::OP_EQUALVERIFY) {
+            return Err(Error::new(
+                ErrorKind::InvalidData,
+                "Invalid Data. Expected OP_EQUALVERIFY after reading 20 bytes after third byte of the script.",
+            ));
+        }
+
+        bytes.read_exact(&mut opcode_buffer)?;
+        let should_be_opchecksing = Opcode::from_byte(opcode_buffer[0]);
+        if should_be_opchecksing.ne(&Opcode::OP_CHECKSIG) {
+            return Err(Error::new(
+                ErrorKind::InvalidData,
+                "Invalid Data. Expected OP_CHECKSIG after reading OP_EQUALVERIFY byte in the script.",
+            ));
+        }
+
+        Ok(Cow::Borrowed(Opcode::OP_DUP.try_into()?)
+            + " "
+            + Cow::Borrowed(Opcode::OP_HASH160.try_into()?)
+            + " "
+            + Cow::Borrowed(Opcode::OP_PUSHBYTES_20.try_into()?)
+            + " "
+            + Cow::Owned(hex_hash160)
+            + " "
+            + Cow::Borrowed(Opcode::OP_EQUALVERIFY.try_into()?)
             + " "
             + Cow::Borrowed(Opcode::OP_CHECKSIG.try_into()?))
     }

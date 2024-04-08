@@ -27,6 +27,9 @@ fn main() {
 
     let p2pk = hex!("410000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000ac");
     let mut p2pk = Cursor::new(p2pk.as_ref());
-
     dbg!(StandardScripts::parse(&mut p2pk).unwrap());
+
+    let p2pkh = hex!("76a914000000000000000000000000000000000000000088ac");
+    let mut p2pkh = Cursor::new(p2pkh.as_ref());
+    dbg!(StandardScripts::parse(&mut p2pkh).unwrap());
 }
