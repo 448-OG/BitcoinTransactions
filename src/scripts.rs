@@ -18,7 +18,38 @@ pub enum StandardScripts {
 
 impl StandardScripts {
     pub fn parse<'a>(bytes: &mut Cursor<&[u8]>) -> io::Result<Cow<'a, str>> {
-        todo!()
+        let mut first_byte = [0u8; 1];
+        bytes.read_exact(&mut first_byte)?;
+        let first_opcode = Opcode::from_byte(first_byte[0]);
+
+        match first_opcode {
+            Opcode::OP_PUSHBYTES_65 => Self::P2PK.parse_p2pk(bytes),
+            Opcode::OP_DUP => Self::P2PKH.parse_p2pk(bytes),
+            _ => todo!(),
+        }
+    }
+
+    pub fn parse_p2pk<'a>(&self, bytes: &mut Cursor<&[u8]>) -> io::Result<Cow<'a, str>> {
+        let mut public_key_bytes = [0u8; 65];
+        bytes.read_exact(&mut public_key_bytes)?;
+
+        let hex_public_key = hex::encode(&public_key_bytes);
+        let mut op_checksig_byte = [0u8; 1];
+        bytes.read_exact(&mut op_checksig_byte)?;
+        let op_checksig = Opcode::from_byte(op_checksig_byte[0]);
+
+        if op_checksig.ne(&Opcode::OP_CHECKSIG) {
+            return Err(Error::new(
+                ErrorKind::InvalidData,
+                "Invalid Data. Expected OP_CHECKSIG as last byte of the script.",
+            ));
+        }
+
+        Ok(Cow::Borrowed(Opcode::OP_PUSHBYTES_65.try_into()?)
+            + " "
+            + Cow::Owned(hex_public_key.as_str().to_owned())
+            + " "
+            + Cow::Borrowed(Opcode::OP_CHECKSIG.try_into()?))
     }
 }
 
