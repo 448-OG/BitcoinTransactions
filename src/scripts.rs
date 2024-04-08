@@ -1,7 +1,4 @@
-use std::{
-    borrow::Cow,
-    io::{self, Cursor, Error, ErrorKind, Read},
-};
+use std::io::{self, Cursor, Error, ErrorKind, Read};
 
 #[derive(Debug, Clone, Copy)]
 pub enum StandardScripts {
@@ -17,7 +14,7 @@ pub enum StandardScripts {
 }
 
 impl StandardScripts {
-    pub fn parse<'a>(bytes: &mut Cursor<&[u8]>) -> io::Result<Cow<'a, str>> {
+    pub fn parse(bytes: &mut Cursor<&[u8]>) -> io::Result<String> {
         let mut first_byte = [0u8; 1];
         bytes.read_exact(&mut first_byte)?;
         let first_opcode = Opcode::from_byte(first_byte[0]);
@@ -29,11 +26,10 @@ impl StandardScripts {
         }
     }
 
-    pub fn parse_p2pk<'a>(&self, bytes: &mut Cursor<&[u8]>) -> io::Result<Cow<'a, str>> {
+    pub fn parse_p2pk(&self, bytes: &mut Cursor<&[u8]>) -> io::Result<String> {
         let mut public_key_bytes = [0u8; 65];
         bytes.read_exact(&mut public_key_bytes)?;
 
-        let hex_public_key = hex::encode(&public_key_bytes);
         let mut op_checksig_byte = [0u8; 1];
         bytes.read_exact(&mut op_checksig_byte)?;
         let op_checksig = Opcode::from_byte(op_checksig_byte[0]);
@@ -45,14 +41,14 @@ impl StandardScripts {
             ));
         }
 
-        Ok(Cow::Borrowed(Opcode::OP_PUSHBYTES_65.try_into()?)
-            + " "
-            + Cow::Owned(hex_public_key.as_str().to_owned())
-            + " "
-            + Cow::Borrowed(Opcode::OP_CHECKSIG.try_into()?))
+        Ok(ScriptBuilder::new()
+            .push_opcode(Opcode::OP_PUSHBYTES_65)?
+            .push_bytes(&public_key_bytes)?
+            .push_opcode(Opcode::OP_CHECKSIG)?
+            .build())
     }
 
-    pub fn parse_p2pkh<'a>(&self, bytes: &mut Cursor<&[u8]>) -> io::Result<Cow<'a, str>> {
+    pub fn parse_p2pkh(&self, bytes: &mut Cursor<&[u8]>) -> io::Result<String> {
         let mut opcode_buffer = [0u8; 1];
 
         bytes.read_exact(&mut opcode_buffer)?;
@@ -75,7 +71,6 @@ impl StandardScripts {
 
         let mut hash160_bytes = [0u8; 20];
         bytes.read_exact(&mut hash160_bytes)?;
-        let hex_hash160 = hex::encode(&hash160_bytes);
 
         bytes.read_exact(&mut opcode_buffer)?;
         let should_be_opequalverify = Opcode::from_byte(opcode_buffer[0]);
@@ -95,17 +90,48 @@ impl StandardScripts {
             ));
         }
 
-        Ok(Cow::Borrowed(Opcode::OP_DUP.try_into()?)
-            + " "
-            + Cow::Borrowed(Opcode::OP_HASH160.try_into()?)
-            + " "
-            + Cow::Borrowed(Opcode::OP_PUSHBYTES_20.try_into()?)
-            + " "
-            + Cow::Owned(hex_hash160)
-            + " "
-            + Cow::Borrowed(Opcode::OP_EQUALVERIFY.try_into()?)
-            + " "
-            + Cow::Borrowed(Opcode::OP_CHECKSIG.try_into()?))
+        Ok(ScriptBuilder::new()
+            .push_opcode(Opcode::OP_DUP)?
+            .push_opcode(Opcode::OP_HASH160)?
+            .push_opcode(Opcode::OP_PUSHBYTES_20)?
+            .push_bytes(&hash160_bytes)?
+            .push_opcode(Opcode::OP_EQUALVERIFY)?
+            .push_opcode(Opcode::OP_CHECKSIG)?
+            .build())
+    }
+}
+
+#[derive(Debug, Default)]
+pub struct ScriptBuilder(Vec<String>);
+
+impl ScriptBuilder {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn push_opcode(mut self, opcode: Opcode) -> io::Result<Self> {
+        let opcode_string: &str = opcode.try_into()?;
+        self.0.push(opcode_string.to_owned());
+
+        Ok(self)
+    }
+
+    pub fn push_bytes(mut self, bytes: &[u8]) -> io::Result<Self> {
+        self.0.push(hex::encode(bytes));
+
+        Ok(self)
+    }
+
+    pub fn build(self) -> String {
+        self.0
+            .into_iter()
+            .map(|mut part| {
+                part.push(' ');
+                part
+            })
+            .collect::<String>()
+            .trim()
+            .into()
     }
 }
 
