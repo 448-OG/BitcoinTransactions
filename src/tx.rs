@@ -60,7 +60,7 @@ impl BtcTx {
 
         let mut inputs = Vec::<TxInput>::new();
 
-        (0..no_of_inputs).into_iter().for_each(|_| {
+        (0..no_of_inputs).for_each(|_| {
             inputs.push(BtcTx::input_decoder(bytes).unwrap());
         });
 
@@ -128,7 +128,7 @@ impl BtcTx {
         let mut outputs = Vec::<TxOutput>::new();
 
         // Iterate over number of outputs
-        (0..num_of_outputs).into_iter().for_each(|_| {
+        (0..num_of_outputs).for_each(|_| {
             // The first value of the output is the amount in satoshis
             // which is 8 bytes long (Rust u64)
             let mut satoshis_as_bytes = [0u8; 8];

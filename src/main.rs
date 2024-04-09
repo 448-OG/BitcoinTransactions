@@ -20,11 +20,6 @@ fn main() {
 
     dbg!(tx_decode.unwrap());*/
 
-    // opcode!(OP, 4, 5, 6);
-    // println!("{:?}", OP);
-
-    //dbg!(hex!("4f"));
-
     let p2pk_bytes = hex!("410000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000ac");
     let mut p2pk = Cursor::new(p2pk_bytes.as_ref());
     dbg!(StandardScripts::parse(&mut p2pk).unwrap());
@@ -41,11 +36,23 @@ fn main() {
     let mut op_return = Cursor::new(op_return_bytes.as_ref());
     dbg!(StandardScripts::parse(&mut op_return).unwrap());
 
-    // let p2ms_3_bytes = hex!("524104d81fd577272bbe73308c93009eec5dc9fc319fc1ee2e7066e17220a5d47a18314578be2faea34b9f1f8ca078f8621acd4bc22897b03daa422b9bf56646b342a24104ec3afff0b2b66e8152e9018fe3be3fc92b30bf886b3487a525997d00fd9da2d012dce5d5275854adc3106572a5d1e12d4211b228429f5a7b2f7ba92eb0475bb14104b49b496684b02855bc32f5daefa2e2e406db4418f3b86bca5195600951c7d918cdbe5e6d3736ec2abf2dd7610995c3086976b2c0c7b4e459d10b34a316d5a5e753ae");
-    // let mut p2ms_3 = Cursor::new(p2ms_3_bytes.as_ref());
-    // dbg!(StandardScripts::parse(&mut p2ms_3).unwrap());
+    let p2wpkh_bytes = hex!("00140000000000000000000000000000000000000000");
+    let mut p2wpkh = Cursor::new(p2wpkh_bytes.as_ref());
+    dbg!(StandardScripts::parse(&mut p2wpkh).unwrap());
 
-    // let p2ms_2_bytes = hex!("51210000000000000000000000000000000000000000000000000000000000000000002100000000000000000000000000000000000000000000000000000000000000000052ae");
-    // let mut p2ms_2 = Cursor::new(p2ms_2_bytes.as_ref());
-    // dbg!(StandardScripts::parse(&mut p2ms_2).unwrap());
+    let p2wsh_bytes = hex!("00200000000000000000000000000000000000000000000000000000000000000000");
+    let mut p2wsh = Cursor::new(p2wsh_bytes.as_ref());
+    dbg!(StandardScripts::parse(&mut p2wsh).unwrap());
+
+    let p2tr_bytes = hex!("51200000000000000000000000000000000000000000000000000000000000000000");
+    let mut p2tr = Cursor::new(p2tr_bytes.as_ref());
+    dbg!(StandardScripts::parse(&mut p2tr).unwrap());
+
+    let p2ms_3_bytes = hex!("524104d81fd577272bbe73308c93009eec5dc9fc319fc1ee2e7066e17220a5d47a18314578be2faea34b9f1f8ca078f8621acd4bc22897b03daa422b9bf56646b342a24104ec3afff0b2b66e8152e9018fe3be3fc92b30bf886b3487a525997d00fd9da2d012dce5d5275854adc3106572a5d1e12d4211b228429f5a7b2f7ba92eb0475bb14104b49b496684b02855bc32f5daefa2e2e406db4418f3b86bca5195600951c7d918cdbe5e6d3736ec2abf2dd7610995c3086976b2c0c7b4e459d10b34a316d5a5e753ae");
+    let mut p2ms_3 = Cursor::new(p2ms_3_bytes.as_ref());
+    dbg!(StandardScripts::parse(&mut p2ms_3).unwrap());
+
+    let p2ms_2_bytes = hex!("51210000000000000000000000000000000000000000000000000000000000000000002100000000000000000000000000000000000000000000000000000000000000000052ae");
+    let mut p2ms_2 = Cursor::new(p2ms_2_bytes.as_ref());
+    dbg!(StandardScripts::parse(&mut p2ms_2).unwrap());
 }

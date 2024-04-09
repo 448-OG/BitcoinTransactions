@@ -4,17 +4,7 @@ use std::{
 };
 
 #[derive(Debug, Clone, Copy)]
-pub enum StandardScripts {
-    P2PK,
-    P2PKH,
-    P2MS,
-    P2SH,
-    P2WPKH,
-    P2WSH,
-    P2TR,
-    Data,
-    UnsupportedScript,
-}
+pub struct StandardScripts;
 
 impl StandardScripts {
     pub fn parse(bytes: &mut Cursor<&[u8]>) -> io::Result<String> {
@@ -23,46 +13,34 @@ impl StandardScripts {
         let first_opcode = Opcode::from_byte(opcode_buffer[0]);
 
         match first_opcode {
-            Opcode::PushBytes(65) => Self::P2PK.parse_p2pk(bytes),
-            Opcode::OP_DUP => Self::P2PKH.parse_p2pkh(bytes),
-            Opcode::OP_HASH160 => Self::P2SH.parse_p2sh(bytes),
-            Opcode::OP_RETURN => Self::Data.parse_data(bytes),
-            _ => todo!(),
-            // Opcode::OP_0 => {
-            //     bytes.read_exact(&mut opcode_buffer)?;
-            //     let second_opcode = Opcode::from_byte(opcode_buffer[0]);
-            //     if second_opcode.eq(&Opcode::OP_PUSHBYTES_20) {
-            //         Self::P2WPKH.parse_p2wpkh(bytes)
-            //     } else if second_opcode.eq(&Opcode::OP_PUSHBYTES_32) {
-            //         Self::P2WSH.parse_p2wsh(bytes)
-            //     } else {
-            //         return  Self::to_io_error("Invalid data. Expected second opcode after OP_0 to be either OP_PUSHBYTES_20 or OP_PUSHBYTES_32");
-            //     }
-            // }
-            // Opcode::OP_RETURN => Self::Data.parse_data(bytes),
-            // _ => {
-            //     if P2MS_OPCODES.contains(&first_opcode) {
-            //         let mut second_opcode_buffer = [0u8; 1];
-            //         bytes.read_exact(&mut second_opcode_buffer)?;
-            //         let second_opcode = Opcode::from_byte(second_opcode_buffer[0]);
-            //         // Reset to two positions
-            //         bytes.set_position(bytes.position() - 2);
-            //         if second_opcode.eq(&Opcode::OP_PUSHBYTES_65) {
-            //             ///////////////HERE
-            //             Self::P2MS.parse_p2ms(bytes)
-            //         } else if second_opcode.eq(&Opcode::OP_PUSHBYTES_32) {
-            //             Self::P2TR.parse_p2tr(bytes)
-            //         } else {
-            //             return Self::to_io_error(
-            //                 "Invalid data. Expected second opcode after OP_1 to be either OP_PUSHBYTES_33 or OP_PUSHBYTES_32",
-            //             );
-            //         }
-            //     } else {
-            //         return Self::to_io_error(
-            //             "Invalid data. This is not a standard Bitcoin core script",
-            //         );
-            //     }
-            //}
+            Opcode::PushBytes(65) => Self::parse_p2pk(bytes),
+            Opcode::OP_DUP => Self::parse_p2pkh(bytes),
+            Opcode::OP_HASH160 => Self::parse_p2sh(bytes),
+            Opcode::OP_RETURN => Self::parse_data(bytes),
+            Opcode::OP_0 => {
+                bytes.read_exact(&mut opcode_buffer)?;
+                let second_opcode = Opcode::from_byte(opcode_buffer[0]);
+                if second_opcode.eq(&Opcode::PushBytes(20)) {
+                    Self::parse_p2wpkh(bytes)
+                } else if second_opcode.eq(&Opcode::PushBytes(32)) {
+                    Self::parse_p2wsh(bytes)
+                } else {
+                    return Self::to_io_error(
+                        "Invalid Script. Expected OP_PUSHBYTES_20 or OP_PUSHBYTES_32 after OP_0",
+                    );
+                }
+            }
+            _ => {
+                bytes.read_exact(&mut opcode_buffer)?;
+                let second_opcode = Opcode::from_byte(opcode_buffer[0]);
+
+                if first_opcode.eq(&Opcode::OP_1) && second_opcode.eq(&Opcode::PushBytes(32)) {
+                    Self::parse_p2tr(bytes)
+                } else {
+                    bytes.set_position(bytes.position() - 2);
+                    Self::parse_p2ms(bytes)
+                }
+            }
         }
     }
 
@@ -70,7 +48,7 @@ impl StandardScripts {
         Err(io::Error::new(ErrorKind::InvalidData, message))
     }
 
-    pub fn parse_p2pk(&self, bytes: &mut Cursor<&[u8]>) -> io::Result<String> {
+    pub fn parse_p2pk(bytes: &mut Cursor<&[u8]>) -> io::Result<String> {
         let mut public_key_bytes = [0u8; 65];
         bytes.read_exact(&mut public_key_bytes)?;
 
@@ -94,7 +72,7 @@ impl StandardScripts {
         Ok(script_builder.build())
     }
 
-    pub fn parse_p2pkh(&self, bytes: &mut Cursor<&[u8]>) -> io::Result<String> {
+    pub fn parse_p2pkh(bytes: &mut Cursor<&[u8]>) -> io::Result<String> {
         let mut opcode_buffer = [0u8; 1];
 
         bytes.read_exact(&mut opcode_buffer)?;
@@ -147,7 +125,7 @@ impl StandardScripts {
         Ok(script_builder.build())
     }
 
-    pub fn parse_p2sh(&self, bytes: &mut Cursor<&[u8]>) -> io::Result<String> {
+    pub fn parse_p2sh(bytes: &mut Cursor<&[u8]>) -> io::Result<String> {
         let mut script_buffer = [0u8; 1];
 
         bytes.read_exact(&mut script_buffer)?;
@@ -179,7 +157,7 @@ impl StandardScripts {
         Ok(script_builder.build())
     }
 
-    pub fn parse_data(&self, bytes: &mut Cursor<&[u8]>) -> io::Result<String> {
+    pub fn parse_data(bytes: &mut Cursor<&[u8]>) -> io::Result<String> {
         let mut script_buffer = [0u8; 1];
 
         bytes.read_exact(&mut script_buffer)?;
@@ -195,83 +173,103 @@ impl StandardScripts {
         Ok(script_builder.build())
     }
 
-    // pub fn parse_p2ms(&self, bytes: &mut Cursor<&[u8]>) -> io::Result<String> {
-    //     let mut opcode_buffer = [0u8; 1];
-    //     bytes.read_exact(&mut opcode_buffer)?;
-    //     let threshold_opcode = Opcode::from_byte(opcode_buffer[0]);
+    pub fn parse_p2wpkh(bytes: &mut Cursor<&[u8]>) -> io::Result<String> {
+        let mut pubkey_hash_bytes = [0u8; 20];
+        bytes.read_exact(&mut pubkey_hash_bytes)?;
 
-    //     let mut script_builder = ScriptBuilder::new();
-    //     script_builder.push_opcode(threshold_opcode)?;
+        let mut scripts = ScriptBuilder::new();
+        scripts
+            .push_opcode(Opcode::OP_0)?
+            .push_opcode(Opcode::PushBytes(20))?
+            .push_bytes(&pubkey_hash_bytes)?;
 
-    //     let mut public_key_buffer = [0u8; 65];
+        Ok(scripts.build())
+    }
 
-    //     let mut public_key_count = 0usize;
+    pub fn parse_p2wsh(bytes: &mut Cursor<&[u8]>) -> io::Result<String> {
+        let mut hash_bytes = [0u8; 32];
+        bytes.read_exact(&mut hash_bytes)?;
 
-    //     loop {
-    //         bytes.read_exact(&mut opcode_buffer)?;
-    //         let opcode = Opcode::from_byte(opcode_buffer[0]);
+        let mut scripts = ScriptBuilder::new();
+        scripts
+            .push_opcode(Opcode::OP_0)?
+            .push_opcode(Opcode::PushBytes(32))?
+            .push_bytes(&hash_bytes)?;
 
-    //         if opcode.eq(&Opcode::OP_PUSHBYTES_65) {
-    //             bytes.read_exact(&mut public_key_buffer)?;
+        Ok(scripts.build())
+    }
 
-    //             script_builder.push_opcode(opcode)?;
-    //             script_builder.push_bytes(&public_key_buffer)?;
-    //             public_key_count = public_key_count.add(1);
-    //         } else if P2MS_OPCODES.contains(&opcode) {
-    //             script_builder.push_opcode(opcode)?;
+    pub fn parse_p2tr(bytes: &mut Cursor<&[u8]>) -> io::Result<String> {
+        let mut hash_bytes = [0u8; 32];
+        bytes.read_exact(&mut hash_bytes)?;
 
-    //             if let Some((index, _)) = P2MS_OPCODES
-    //                 .iter()
-    //                 .enumerate()
-    //                 .find(|(_, inner_opcode)| *inner_opcode == &opcode)
-    //             {
-    //                 dbg!(public_key_count);
-    //                 dbg!(index);
-    //                 dbg!(opcode);
-    //                 dbg!(&script_builder);
-    //                 if (index + 1) != public_key_count {
-    //                     return Self::to_io_error("Invalid number of public keys");
-    //                 }
-    //             }
-    //             break;
-    //         } else {
-    //             return Self::to_io_error("Invalid multisignature script");
-    //         }
-    //     }
+        let mut scripts = ScriptBuilder::new();
+        scripts
+            .push_opcode(Opcode::Num(1))?
+            .push_opcode(Opcode::PushBytes(32))?
+            .push_bytes(&hash_bytes)?;
 
-    //     Ok(script_builder.build())
-    // }
+        Ok(scripts.build())
+    }
 
-    // pub fn parse_p2wpkh(&self, bytes: &mut Cursor<&[u8]>) -> io::Result<String> {
-    //     todo!()
-    // }
+    pub fn parse_p2ms(bytes: &mut Cursor<&[u8]>) -> io::Result<String> {
+        let mut opcode_buffer = [0u8; 1];
+        bytes.read_exact(&mut opcode_buffer)?;
+        let threshold_opcode = Opcode::from_byte(opcode_buffer[0]);
 
-    // pub fn parse_p2wsh(&self, bytes: &mut Cursor<&[u8]>) -> io::Result<String> {
-    //     todo!()
-    // }
+        match threshold_opcode {
+            Opcode::Num(_) | Opcode::OP_1 => {
+                let mut script_builder = ScriptBuilder::new();
+                script_builder.push_opcode(threshold_opcode)?;
 
-    // pub fn parse_p2tr(&self, bytes: &mut Cursor<&[u8]>) -> io::Result<String> {
-    //     todo!()
-    // }
+                let mut pubkey_count = 0u8;
+                let parsed_pubkey_count: u8;
+                let mut pushbytes_buffer = Vec::<u8>::new();
+
+                loop {
+                    bytes.read_exact(&mut opcode_buffer)?;
+                    let current_opcode = Opcode::from_byte(opcode_buffer[0]);
+
+                    match current_opcode {
+                        Opcode::Num(value) => {
+                            parsed_pubkey_count = value;
+                            script_builder.push_opcode(current_opcode)?;
+                            break;
+                        }
+                        Opcode::PushBytes(value) => {
+                            let new_position = bytes.position() as usize + value as usize;
+                            let read_bytes =
+                                &bytes.get_ref()[bytes.position() as usize..new_position];
+                            pushbytes_buffer.extend_from_slice(read_bytes);
+
+                            script_builder
+                                .push_opcode(current_opcode)?
+                                .push_bytes(&pushbytes_buffer)?;
+
+                            pushbytes_buffer.clear();
+                            bytes.set_position(new_position as u64);
+                            pubkey_count = pubkey_count.add(1);
+                        }
+                        _ => {
+                            return Self::to_io_error(
+                                "Invalid Script. Expected a PUSH_BYTES_* or OP_1..16",
+                            )
+                        }
+                    }
+                }
+
+                if pubkey_count.ne(&parsed_pubkey_count) {
+                    return Self::to_io_error(
+                                "Invalid Script. The number of public keys for multisignature is less than or greater than the script requirements.",
+                            );
+                }
+
+                Ok(script_builder.build())
+            }
+            _ => Self::to_io_error("Invalid Script."),
+        }
+    }
 }
-
-pub const P2MS_OPCODES: &[Opcode] = &[
-    Opcode::OP_1,
-    Opcode::OP_2,
-    Opcode::OP_3,
-    Opcode::OP_4,
-    Opcode::OP_5,
-    Opcode::OP_6,
-    Opcode::OP_7,
-    Opcode::OP_8,
-    Opcode::OP_9,
-    Opcode::OP_10,
-    Opcode::OP_11,
-    Opcode::OP_12,
-    Opcode::OP_13,
-    Opcode::OP_14,
-    Opcode::OP_15,
-];
 
 #[derive(Debug, Default)]
 pub struct ScriptBuilder(Vec<String>);
@@ -318,21 +316,7 @@ pub enum Opcode {
     OP_RETURN,
     OP_0,
     OP_1,
-    OP_2,
-    OP_3,
-    OP_4,
-    OP_5,
-    OP_6,
-    OP_7,
-    OP_8,
-    OP_9,
-    OP_10,
-    OP_11,
-    OP_12,
-    OP_13,
-    OP_14,
-    OP_15,
-    OP_16,
+    Num(u8),
     PushBytes(u8),
     UnsupportedOpcode,
 }
@@ -349,21 +333,27 @@ impl Opcode {
             106 => Self::OP_RETURN,
             0 => Self::OP_0,
             81 => Self::OP_1,
-            82 => Self::OP_2,
-            83 => Self::OP_3,
-            84 => Self::OP_4,
-            85 => Self::OP_5,
-            86 => Self::OP_6,
-            87 => Self::OP_7,
-            88 => Self::OP_8,
-            89 => Self::OP_9,
-            90 => Self::OP_10,
-            91 => Self::OP_11,
-            92 => Self::OP_12,
-            93 => Self::OP_13,
-            94 => Self::OP_14,
-            95 => Self::OP_15,
-            96 => Self::OP_16,
+            82..=96 => {
+                let to_num = match byte {
+                    82 => 2u8,
+                    83 => 3,
+                    84 => 4,
+                    85 => 5,
+                    86 => 6,
+                    87 => 7,
+                    88 => 8,
+                    89 => 9,
+                    90 => 10,
+                    91 => 11,
+                    92 => 12,
+                    93 => 13,
+                    94 => 14,
+                    95 => 15,
+                    96 => 16,
+                    _ => return Self::UnsupportedOpcode,
+                };
+                Self::Num(to_num)
+            }
             _ => Self::UnsupportedOpcode,
         }
     }
@@ -403,21 +393,7 @@ impl TryFrom<Opcode> for String {
             Opcode::OP_RETURN => "OP_RETURN",
             Opcode::OP_0 => "OP_0",
             Opcode::OP_1 => "OP_1",
-            Opcode::OP_2 => "OP_2",
-            Opcode::OP_3 => "OP_3",
-            Opcode::OP_4 => "OP_4",
-            Opcode::OP_5 => "OP_5",
-            Opcode::OP_6 => "OP_6",
-            Opcode::OP_7 => "OP_7",
-            Opcode::OP_8 => "OP_8",
-            Opcode::OP_9 => "OP_9",
-            Opcode::OP_10 => "OP_10",
-            Opcode::OP_11 => "OP_11",
-            Opcode::OP_12 => "OP_12",
-            Opcode::OP_13 => "OP_13",
-            Opcode::OP_14 => "OP_14",
-            Opcode::OP_15 => "OP_15",
-            Opcode::OP_16 => "OP_16",
+            Opcode::Num(value) => return Ok(String::from("OP_").add(value.to_string().as_str())),
             Opcode::UnsupportedOpcode => {
                 return Err(io::Error::new(
                     ErrorKind::InvalidData,
